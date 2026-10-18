@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pengawasan PPE &amp; Bahaya · Tambang</title>
+<meta name="description" content="Dashboard keselamatan tambang: gap PPE, helm, peringatan dini, dan evaluasi SOP dengan narasi AI. Data sintetis.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <div class="kick"><span class="dot"></span>Pengawasan PPE &amp; bahaya · 90 hari · data sintetis</div>
+    <h1 id="headline">Memuat data…</h1>
+    <div class="nums" id="nums"></div>
+  </header>
+
+  <nav class="jump" aria-label="Bagian">
+    <a href="#zona">Zona</a><a href="#denyut">Denyut</a><a href="#helm">Helm</a><a href="#tren">Tren</a>
+    <a href="#ppe">Pola APD</a><a href="#dini">Peringatan dini</a><a href="#kasus">Kasus</a><a href="#sop">SOP</a>
+  </nav>
+
+  <section id="zona" class="sec">
+    <div class="sec-h"><span class="no">01</span><div><h2>Peta zona</h2><p>Gap PPE 7 hari terakhir per zona. Ubin paling kanan-bawah adalah yang paling perlu perhatian sekarang.</p></div></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="ai-slot" data-panel="zona"></div>
+  </section>
+
+  <section id="denyut" class="sec">
+    <div class="sec-h"><span class="no">02</span><div><h2>Denyut 90 hari</h2><p>Batang: gap terkonfirmasi per hari seluruh situs. Titik di bawah: near-miss (kuning) dan insiden (merah).</p></div></div>
+    <div class="chart" id="denyut-chart"></div>
+    <div class="ai-slot" data-panel="denyut"></div>
+  </section>
+
+  <section id="helm" class="sec">
+    <div class="sec-h"><span class="no">03</span><div><h2>Helm: kapan dan di mana dilepas</h2><p>Peta panas jam kerja dan masa kerja pekerja. Sel paling merah adalah kombinasi paling sering terjadi.</p></div></div>
+    <div class="helm-grid">
+      <div class="heat-wrap" id="helm-heat"></div>
+      <div class="ladder" id="helm-ladder"></div>
+    </div>
+    <div class="ai-slot" data-panel="helm"></div>
+  </section>
+
+  <section id="tren" class="sec">
+    <div class="sec-h"><span class="no">04</span><div><h2>Tren helm per divisi</h2><p>Gap helm mingguan. Garis tebal adalah divisi yang sedang disorot; garis putus-putus adalah situs.</p></div></div>
+    <div class="chart" id="tren-chart"></div>
+    <div class="legend" id="tren-legend"></div>
+    <div class="ai-slot" data-panel="tren"></div>
+  </section>
+
+  <section id="ppe" class="sec">
+    <div class="sec-h"><span class="no">05</span><div><h2>Pola APD per zona</h2><p>Gap per zona dan item. Tanda – berarti item tidak diwajibkan di zona itu.</p></div></div>
+    <div class="matrix-wrap" id="matrix"></div>
+    <div class="ai-slot" data-panel="ppe"></div>
+  </section>
+
+  <section id="dini" class="sec">
+    <div class="sec-h"><span class="no">06</span><div><h2>Peringatan dini</h2><p>Seberapa sering zona yang ditandai mengalami kejadian dalam 7 hari berikutnya, dibanding yang tidak ditandai.</p></div></div>
+    <div class="ew-wrap">
+      <div class="ew-table" id="ew-table"></div>
+      <div class="ew-read" id="ew-read"></div>
+    </div>
+    <div class="ai-slot" data-panel="dini"></div>
+  </section>
+
+  <section id="kasus" class="sec">
+    <div class="sec-h"><span class="no">07</span><div><h2>Kasus investigasi</h2><p>Sinyal 7 hari sebelum kejadian. Identitas pekerja tidak ditampilkan; sebab belum ditetapkan.</p></div></div>
+    <div class="cases" id="cases"></div>
+  </section>
+
+  <section id="sop" class="sec">
+    <div class="sec-h"><span class="no">08</span><div><h2>Evaluasi SOP</h2><p>Revisi hanya bila rasio ≥ 2×, selisih bertahan 3 dari 4 minggu, dan melibatkan 2 crew atau lebih.</p></div></div>
+    <div class="sop-list" id="sop-list"></div>
+    <div class="ai-slot" data-panel="sop"></div>
+  </section>
+
+  <footer class="foot">
+    <p><b>Batas.</b> Semua angka berasal dari data sintetis 90 hari. Hubungan sinyal dan kejadian dibentuk dalam simulasi, sehingga peringatan dini belum tervalidasi di lapangan.</p>
+    <p><b>Narasi AI.</b> Setiap blok AI menampilkan teks dari aturan dulu. Tombol “Tulis ulang dengan AI” memanggil model lewat <code>/api/analyze</code>; jawaban diperiksa guardrail angka sebelum tampil.</p>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="app.js" defer></script>
+</body>
+</html>
