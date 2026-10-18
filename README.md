@@ -31,3 +31,19 @@ Uji lokal logika ini: `node -e "require('./api/analyze.js').checkGuardrail('...'
 - Narasi awal dibuat dari aturan (tanpa model). Tombol "Tulis ulang dengan AI" memanggil model.
 - Peringatan dini belum tervalidasi di lapangan.
 - Tidak ada autentikasi di halaman: jangan deploy data nyata tanpa menambahkan kontrol akses.
+
+## Struktur (v5, ringkas untuk supervisor dan manajemen)
+
+- Satu halaman dashboard: enam angka utama, tiga grafik tren, lalu PPE, deteksi jatuh, zona berbahaya, dan kerja di ketinggian dalam satu layar gulir. Tanpa tab.
+- Bahasa sederhana: tidak ada CI, p, atau titik ubah di layar. Uji statistik hanya dipakai di balik layar untuk menentukan kata “naik”, “turun”, atau “stabil”.
+
+## Data (berbasis CCTV)
+
+- `data/cctv.json`: satu-satunya data. Empat aliran keluaran CCTV: model PPE, deteksi jatuh, zona berbahaya (geofence),
+  dan kerja di ketinggian. Semua laju dinormalisasi per 10.000 orang terlihat kamera.
+- Tidak ada atribut yang tidak bisa dilihat kamera: masa kerja, crew, alasan, aturan lokasi. Dashboard tidak menyimpulkan sebab.
+- Data sintetis (seed 2026). Beberapa pola sengaja ditanam agar mekanisme terlihat: kamera B2-K2 menghasilkan alarm palsu
+  deteksi jatuh sejak minggu ke-6, lonjakan masuk zona berbahaya B3 sejak minggu ke-8, harness tidak terlihat lebih sering
+  di C2 dan shift malam, dan gap PPE tinggi mendahului jatuh. Gunakan hanya untuk mendemonstrasikan logika dashboard.
+- `api/analyze.js` menerima skema bebas: model harus mengembalikan kunci yang sama dengan template panel.
+  Guardrail: semua angka harus ada di fakta panel (atau 1–13 dan 90), dan frasa klaim sebab ditolak.
