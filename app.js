@@ -63,7 +63,7 @@
   const wireTips = (root) => root.querySelectorAll("[data-tip]").forEach((el) => tipOn(el, el.dataset.tip));
   let seq = 0;
   function lineChart(weeks, scale, o = {}) {
-    const id = "lc" + ++seq, W = 640, H = 200, pl = 38, pr = 12, pt = 8, pb = 24, nw = weeks.length, data = withMa(weeks, scale);
+    const id = "lc" + ++seq, W = 640, H = o.h || 200, pl = 38, pr = 12, pt = 8, pb = 24, nw = weeks.length, data = withMa(weeks, scale);
     const mxv = Math.max(...data.map((w) => w.rate)) * 1.12 || 1, step = nice(mxv, 4), ymax = Math.ceil(mxv / step) * step;
     const X = (i) => pl + (W - pl - pr) * i / (nw - 1), Y = (v) => pt + (H - pt - pb) * (1 - v / ymax);
     let g = ""; for (let v = 0; v <= ymax + 1e-9; v += step) g += `<line x1="${pl}" x2="${W - pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line-2)"/><text x="${pl - 6}" y="${Y(v) + 4}" text-anchor="end">${dec(v, step < 1 ? 1 : 0)}${scale === 100 ? "%" : ""}</text>`;
@@ -116,10 +116,16 @@
   }
   function aiInner(t, src, o = {}) {
     const ak = (Array.isArray(t.aksi) ? t.aksi : [t.aksi]).filter(Boolean), tm = (t.temuan || []).filter(Boolean);
-    const L = (a) => `<ul>${a.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
-    return `<div class="nh"><span>${o.title || "Ringkasan"} · ${src === "live" ? "ditulis model" : "dari aturan"}</span><button type="button" class="lk rw-ai">${src === "live" ? "Tulis ulang lagi" : "Tulis ulang dengan AI"}</button></div>
-      <div class="acols">${tm.length ? `<div><h5 class="ah">Pelanggaran</h5>${L(tm)}</div>` : ""}${ak.length ? `<div><h5 class="ah sol">Usulan solusi</h5>${L(ak)}</div>` : ""}</div>`;
+    const pair = tm.length === ak.length;
+    const L = (a, c) => `<ul class="${c}">${a.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    const body = pair ? `<ol class="pairs">${tm.map((x, i) => `<li><p class="v">${esc(x)}</p><p class="s">${esc(ak[i])}</p></li>`).join("")}</ol>` : `<h5 class="ah">Pelanggaran</h5>${L(tm, "")}<h5 class="ah sol">Usulan solusi</h5>${L(ak, "")}`;
+    return `${body}<div class="nh"><span>${src === "live" ? "Ditulis model" : "Dari aturan"}</span><button type="button" class="lk rw-ai">${src === "live" ? "Tulis ulang lagi" : "Tulis ulang dengan AI"}</button></div>`;
   }
+  document.addEventListener("click", (e) => {
+    const sg = e.target.closest(".seg button");
+    if (sg) { const c = sg.closest(".card"); c.querySelectorAll(".seg button").forEach((b) => b.classList.toggle("on", b === sg)); c.querySelectorAll(".pane").forEach((p) => (p.hidden = p.dataset.pane !== sg.dataset.pane)); }
+    if (e.target.closest("#openall")) { const g = document.querySelectorAll("details.grp"), open = [...g].some((d) => !d.open); g.forEach((d) => (d.open = open)); e.target.closest("#openall").textContent = open ? "Tutup semua" : "Buka semua"; }
+  });
   document.addEventListener("click", async (e) => {
     const btn = e.target.closest(".rw-ai"); if (!btn) return;
     const el = btn.closest(".ais"), spec = NOTES.get(el.dataset.id); btn.disabled = true; btn.textContent = "Menulis…";
@@ -175,70 +181,84 @@
       const Hn = T.harness, N = J.respons.per_shift;
       const topN = [...ITEMS].sort((a, b) => IT[b].n_event - IT[a].n_event).slice(0, 3).map((i) => lc(i));
       const headline = `Pelanggaran PPE terbanyak: ${topN.join(", ").replace(/, ([^,]*)$/, " dan $1")}. ${F.harness ? F.harness.judul + ". " : ""}${F.surge ? F.surge.judul + "." : ""}`.trim();
-      const ai = aiBox("satu-halaman", headline, FLIST.slice(0, 4).map((f) => `${f.judul}: ${f.detail}`), FLIST.slice(0, 4).map((f) => f.usul), { title: "Pelanggaran dan solusi · AI" });
-      // --- baris angka utama
-      const kpi = (title, big, sub, t, extra) => `<section class="pn s2 kp"><header><h3>${title}</h3>${t ? badge(t, true) : ""}</header><div class="pb"><div class="bignum">${big}</div><div class="bsub">${sub}</div>${extra || ""}</div></section>`;
-      const pr = (p) => `<div class="prog"><i style="width:${p}%"></i></div>`;
-      const tri = SHIFTS.map((x) => `<div class="tri ${x === "Malam" ? "hot" : ""}"><i style="height:${N[x].median / Math.max(...SHIFTS.map((y) => N[y].median)) * 100}%"></i><span>${x.slice(0, 3)}</span></div>`).join("");
-      const kpis = [
-        kpi("PPE gagal", pc(RG.total.rate, 2), `${num(RG.total.n_event)} pelanggaran`, tPPE, spark(RG.mingguan.map((w) => w.rate), "var(--blue)", 150, 26)),
-        kpi("Jatuh terkonfirmasi", J.benar, `${pc(100 * J.benar / (RG.total.orang / 4), 0) === "" ? "" : "90 hari terakhir"}`, tJ, spark(J.mingguan.map((w) => w.rate ?? 1e4 * w.n_event / w.orang), "var(--blue)", 150, 26)),
-        kpi("Alarm jatuh benar", pc(J.presisi, 0), `${J.benar} dari ${J.alarm} alarm`, null, pr(J.presisi)),
-        kpi("Masuk zona berbahaya", num(B.n), `${B.dwell.lama} lama (5 menit atau lebih)`, tB, spark(B.mingguan.map((w) => w.rate ?? 1e4 * w.n_event / w.orang), "var(--blue)", 150, 26)),
-        kpi("Tanpa harness", pc(Hn.rate, 1), `${Hn.tidak_ada} dari ${Hn.dapat_dinilai} episode`, null, pr(Hn.rate * 4)),
-        kpi("Tanggapan alarm malam", `${dec(N.Malam.median, 1)} mnt`, `pagi ${dec(N.Pagi.median, 1)} mnt`, null, `<div class="tris">${tri}</div>`)];
-      // --- tren (3 grafik)
-      const trend = (id, title, weeks, scale, t, sub) => pn(id, title, sub, lineChart(weeks, scale, { label: title, h: 150 }), 4);
-      const tr = [trend("t1", "PPE: cek gagal per minggu", RG.mingguan, 100, tPPE, "Seluruh item, persen cek"), trend("t2", "Masuk zona berbahaya per minggu", B.mingguan, 1e4, tB, "Per 10 ribu orang terlihat"), trend("t3", "Jatuh terkonfirmasi per minggu", J.mingguan, 1e4, tJ, "Per 10 ribu orang terlihat")];
-      // --- PPE
+      const top = FLIST.slice(0, 3), rest = FLIST.slice(3);
+      const ai = aiBox("satu-halaman", headline, top.map((f) => `${f.judul}: ${f.detail}`), top.map((f) => f.usul), { title: "Ditulis ulang" });
+      const more = rest.length ? `<details class="rest"><summary>Temuan lain (${rest.length})</summary><ol>${rest.map((f) => `<li><b>${esc(f.judul)}</b><span>${esc(f.detail)}</span><em>${esc(f.usul)}</em></li>`).join("")}</ol></details>` : "";
+      const kpi = (title, big, sub, t) => `<section class="kp"><div class="kh"><h3>${title}</h3>${t ? badge(t, true) : ""}</div><div class="bignum">${big}</div><div class="bsub">${sub}</div></section>`;
+      const kpis = `<div class="kpis">${[
+        kpi("PPE gagal", pc(RG.total.rate, 2), `${num(RG.total.n_event)} pelanggaran · 90 hari`, tPPE),
+        kpi("Masuk zona berbahaya", num(B.n), `${B.dwell.lama} lama (5 menit atau lebih)`, tB),
+        kpi("Jatuh terkonfirmasi", J.benar, `${pc(J.presisi, 0)} dari ${J.alarm} alarm benar`, tJ),
+        kpi("Tanpa harness", pc(Hn.rate, 1), `${Hn.tidak_ada} dari ${Hn.dapat_dinilai} episode di ketinggian`, null)].join("")}</div>`;
+      // --- tren: satu grafik, tiga pilihan
+      const PANES = [["PPE gagal", RG.mingguan, 100, "Persen cek PPE yang gagal, per minggu"], ["Zona berbahaya", B.mingguan, 1e4, "Orang masuk zona berbahaya per 10 ribu orang terlihat"], ["Jatuh", J.mingguan, 1e4, "Jatuh terkonfirmasi per 10 ribu orang terlihat"]];
+      const trendBody = `<div class="seg" role="tablist">${PANES.map((p, i) => `<button type="button" data-pane="${i}" class="${i ? "" : "on"}">${p[0]}</button>`).join("")}</div>${PANES.map((p, i) => `<div class="pane" data-pane="${i}" ${i ? "hidden" : ""}><p class="cap">${p[3]}</p>${lineChart(p[1], p[2], { label: p[0], h: 290 })}</div>`).join("")}`;
+      // --- PPE per item
       const rows = ITEMS.map((it) => ({ it, pk: IT[it] })).sort((a, b) => b.pk.n_event - a.pk.n_event);
-      const itemBars = bars(rows.map((r) => ({ label: r.it, value: r.pk.n_event, text: num(r.pk.n_event), note: pc(r.pk.rate, 1), tip: `${num(r.pk.n_event)} pelanggaran dari ${num(r.pk.orang)} cek` }))).replace(/<div class="rows">/, `<div class="rows wide">`) + `<p class="fn">Jumlah pelanggaran 90 hari; angka kanan = persen cek yang gagal.</p>`;
+      const itemBars = bars(rows.map((r) => ({ label: r.it, value: r.pk.n_event, text: num(r.pk.n_event), note: pc(r.pk.rate, 1), tip: `${num(r.pk.n_event)} pelanggaran dari ${num(r.pk.orang)} cek` }))).replace(/<div class="rows">/, `<div class="rows wide">`) + `<p class="fn">Jumlah pelanggaran 90 hari · kanan: persen cek gagal.</p>`;
       const topItems = rows.slice(0, 3).map((r) => r.it);
       const zStack = ZONES.map((z) => { const v = topItems.map((it) => (find(IT[it].faktor.zona, z) || { n_event: 0 }).n_event), tot = RG.zona.find((x) => x.id === z).ppe_gap; return { label: z, title: ZN[z].nama, vals: [...v, Math.max(tot - sum(v), 0)] }; }).sort((a, b) => sum(b.vals) - sum(a.vals));
       const segs = [...topItems.map((it, i) => ({ label: it, color: CAT[i] })), { label: "Lainnya", color: "var(--dim)" }];
       const avg = RG.total.rate;
-      const jamCols = colChart(RG.jam.map((r) => ({ label: r.label, value: r.rate, text: dec(r.rate, 1), hi: r.rate >= avg * 1.3, tip: `${r.n_event} pelanggaran dari ${num(r.orang)} cek` })), { suffix: "%", w: 420, h: 190, label: "Cek PPE gagal menurut jam" });
-      // --- peta zona x item
+      const jamCols = colChart(RG.jam.map((r) => ({ label: r.label, value: r.rate, text: dec(r.rate, 1), hi: r.rate >= avg * 1.3, tip: `${r.n_event} pelanggaran dari ${num(r.orang)} cek` })), { suffix: "%", w: 420, h: 180, label: "Cek PPE gagal menurut jam" });
       const ORDER = ["Helm", "Sepatu safety", "Rompi hi-vis", "Kacamata", "Pelindung telinga", "Respirator", "Harness / tali", "Sarung tangan"], AB = { "Helm": "Helm", "Sepatu safety": "Sepatu", "Rompi hi-vis": "Rompi", "Kacamata": "Kacamata", "Pelindung telinga": "Telinga", "Respirator": "Respir.", "Harness / tali": "Harness", "Sarung tangan": "Sarung" };
       const cell = (z, it) => { const r = find(IT[it].faktor.zona, z); return r ? r.rate : null; };
       const mx = Math.max(...ZONES.flatMap((z) => ORDER.map((it) => cell(z, it) ?? 0)));
       const heatH = `<table class="heat"><thead><tr><th></th>${ORDER.map((it) => `<th title="${esc(it)}">${AB[it]}</th>`).join("")}</tr></thead><tbody>${ZONES.map((z) => `<tr><th class="r" title="${esc(ZN[z].nama)}">${z}</th>${ORDER.map((it) => { const v = cell(z, it); if (v === null) return `<td class="na">·</td>`; const a = Math.min(v / mx, 1) * .9 + .06; return `<td data-tip="${esc(z + " · " + it + ": " + pc(v, 2))}" style="background:color-mix(in srgb, var(--coral) ${Math.round(a * 100)}%, var(--panel-2));color:${a > .55 ? "var(--hi-ink)" : "var(--text)"}">${dec(v, 1)}</td>`; }).join("")}</tr>`).join("")}</tbody></table><p class="fn">Persen cek gagal; titik = item tidak dinilai di zona itu.</p>`;
       // --- jatuh
       const cams = [...J.kamera].sort((a, b) => b.alarm - a.alarm).slice(0, 6);
-      const camBad = F.kamera && F.kamera.judul.match(/Kamera (\S+)/)[1];
-      const respCol = colChart(SHIFTS.map((sx) => ({ label: sx, value: N[sx].median, text: dec(N[sx].median, 1), hi: sx === "Malam" && N.Malam.lewat_5 >= 20, tip: `${N[sx].n} alarm; ${pc(N[sx].lewat_5, 0)} lewat 5 menit` })), { suffix: " mnt", w: 420, h: 140, label: "Median waktu tanggapan" });
-      const jatuhH = `<div class="two">${donut([{ label: "Alarm benar", value: J.benar, color: "var(--green)" }, { label: "Alarm palsu", value: J.alarm - J.benar, color: "var(--coral)" }], J.alarm, "alarm")}<div>${stackRows(cams.map((c) => ({ label: c.kamera, vals: [c.benar, c.palsu], title: `${c.kamera}: ${c.benar} benar, ${c.palsu} palsu` })), [{ label: "Benar", color: "var(--green)" }, { label: "Palsu", color: "var(--coral)" }])}</div></div>${camBad ? `<p class="fn" style="display:block">Kamera ${camBad} paling banyak alarm palsu.</p>` : ""}<h4>Waktu tanggapan alarm (median menit)</h4>${respCol}`;
-      // --- zona berbahaya: grafik mini per zona
+      const respCol = colChart(SHIFTS.map((sx) => ({ label: sx, value: N[sx].median, text: dec(N[sx].median, 1), hi: sx === "Malam" && N.Malam.lewat_5 >= 20, tip: `${N[sx].n} alarm; ${pc(N[sx].lewat_5, 0)} lewat 5 menit` })), { suffix: " mnt", w: 420, h: 150, label: "Median waktu tanggapan" });
+      const jatuhH = `<div class="two">${donut([{ label: "Alarm benar", value: J.benar, color: "var(--green)" }, { label: "Alarm palsu", value: J.alarm - J.benar, color: "var(--coral)" }], J.alarm, "alarm")}<div>${stackRows(cams.map((c) => ({ label: c.kamera, vals: [c.benar, c.palsu], title: `${c.kamera}: ${c.benar} benar, ${c.palsu} palsu` })), [{ label: "Benar", color: "var(--green)" }, { label: "Palsu", color: "var(--coral)" }])}</div></div>`;
+      const jzona = colChart(J.faktor.zona.slice().sort((a, b) => b.rate - a.rate).map((z) => ({ label: z.label, value: z.rate, text: dec(z.rate, 0), hi: hi(z), tip: `${z.n_event} jatuh dari ${num(z.orang)} orang terlihat` })), { w: 420, h: 200, label: "Jatuh per zona" });
+      // --- zona berbahaya
       const zt = Object.entries(B.zona_tren).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.paruh2 - a.paruh2);
-      const multi = `<div class="mlg two">${zt.map((z) => miniLine(z.mingguan, z.cp.p_adj < 0.05 && z.paruh2 > z.paruh1, `${z.id} · ${ZN[z.id].zona_bahaya}`, `${dec(z.paruh1, 0)} → ${dec(z.paruh2, 0)}`)).join("")}</div><p class="fn">Masuk per 10 ribu orang, per minggu. Merah = naik nyata.</p>`;
+      const multi = `<div class="mlg">${zt.map((z) => miniLine(z.mingguan, z.cp.p_adj < 0.05 && z.paruh2 > z.paruh1, `${z.id} · ${ZN[z.id].zona_bahaya}`, `${dec(z.paruh1, 0)} → ${dec(z.paruh2, 0)}`)).join("")}</div><p class="fn">Masuk per 10 ribu orang, per minggu. Merah = naik nyata.</p>`;
       // --- harness
-      const stZ = stackRows(Hn.status_zona.map((r) => ({ label: r.label, vals: [r.ada, r["tidak ada"], r["tidak terbaca"]], title: ZN[r.label].nama })), [{ label: "Ada", color: "var(--green)" }, { label: "Tidak ada", color: "var(--coral)" }, { label: "Tidak terbaca", color: "var(--dim)" }]);
-      const stSh = stackRows(Hn.status_shift.map((r) => ({ label: r.label.slice(0, 5), vals: [r.ada, r["tidak ada"], r["tidak terbaca"]] })), [{ label: "Ada", color: "var(--green)" }, { label: "Tidak ada", color: "var(--coral)" }, { label: "Tidak terbaca", color: "var(--dim)" }]).replace(/<div class="legend">[\s\S]*$/, "");
-      const harnessH = `${donut([{ label: "Harness ada", value: Hn.status.ada, color: "var(--green)" }, { label: "Tidak ada", value: Hn.status["tidak ada"], color: "var(--coral)" }, { label: "Tidak terbaca", value: Hn.status["tidak terbaca"], color: "var(--dim)" }], T.n, "episode")}<h4>Per zona</h4>${stZ}<h4>Per shift</h4>${stSh}`;
-      // --- perlu ditindak & tabel zona
-      const list = `<ol class="fl compact">${FLIST.map((f) => `<li><div><b>${esc(f.judul)}</b><span>${esc(f.detail)}</span><em class="us">Usulan: ${esc(f.usul)}</em></div></li>`).join("")}</ol>`;
-      const jzona = colChart(J.faktor.zona.slice().sort((a, b) => b.rate - a.rate).map((z) => ({ label: z.label, value: z.rate, text: dec(z.rate, 0), hi: hi(z), tip: `${z.n_event} jatuh dari ${num(z.orang)} orang terlihat` })), { w: 420, h: 330, label: "Jatuh per zona" });
+      const SG = [{ label: "Ada", color: "var(--green)" }, { label: "Tidak ada", color: "var(--coral)" }, { label: "Tidak terbaca", color: "var(--dim)" }];
+      const stZ = stackRows(Hn.status_zona.map((r) => ({ label: r.label, vals: [r.ada, r["tidak ada"], r["tidak terbaca"]], title: ZN[r.label].nama })), SG);
+      const stSh = stackRows(Hn.status_shift.map((r) => ({ label: r.label.slice(0, 5), vals: [r.ada, r["tidak ada"], r["tidak terbaca"]] })), SG).replace(/<div class="legend">[\s\S]*$/, "");
+      const harnessD = donut([{ label: "Harness ada", value: Hn.status.ada, color: "var(--green)" }, { label: "Tidak ada", value: Hn.status["tidak ada"], color: "var(--coral)" }, { label: "Tidak terbaca", value: Hn.status["tidak terbaca"], color: "var(--dim)" }], T.n, "episode");
+      // --- tabel zona
       const rowsZ = ZONES.map((z) => { const r = RG.zona.find((x) => x.id === z), j = find(J.faktor.zona, z), b = find(B.faktor.zona, z), h = find(Hn.faktor.zona, z); return { z, ppe: r.ppe_7, ppeb: r.ppe_7_sebelum, jatuh: j ? j.n_event : 0, bahaya: b ? b.rate : 0, hz: h ? h.rate : null }; });
       const top2 = (key) => new Set([...rowsZ].filter((r) => r[key] != null).sort((a, b) => b[key] - a[key]).slice(0, 2).map((r) => r.z));
       const tp = top2("ppe"), tj = top2("jatuh"), tb = top2("bahaya"), th = top2("hz");
       rowsZ.forEach((r) => (r.skor = [tp, tj, tb, th].filter((x) => x.has(r.z)).length)); rowsZ.sort((a, b) => b.skor - a.skor || b.ppe - a.ppe);
-      const zTbl = `<table class="zt"><thead><tr><th>Zona</th><th class="n">PPE<br><small>7 hari</small></th><th class="n">Jatuh<br><small>90 hari</small></th><th class="n">Zona bahaya<br><small>per 10 rb</small></th><th class="n">Harness<br><small>% tanpa</small></th></tr></thead><tbody>${rowsZ.map((r) => `<tr><td><b>${r.z}</b> <span class="zn">${esc(ZN[r.z].nama)}</span></td><td class="n ${tp.has(r.z) ? "hot" : ""}">${pc(r.ppe, 1)}<span class="ar ${r.ppe > r.ppeb * 1.1 ? "up" : r.ppe < r.ppeb * 0.9 ? "dn" : ""}">${r.ppe > r.ppeb * 1.1 ? "▲" : r.ppe < r.ppeb * 0.9 ? "▼" : ""}</span></td><td class="n ${tj.has(r.z) ? "hot" : ""}">${r.jatuh}</td><td class="n ${tb.has(r.z) ? "hot" : ""}">${dec(r.bahaya, 0)}</td><td class="n ${th.has(r.z) ? "hot" : ""}">${r.hz == null ? "–" : pc(r.hz, 1)}</td></tr>`).join("")}</tbody></table><p class="fn">Merah = dua tertinggi di kolom. Panah = dibanding 7 hari sebelumnya.</p>`;
-      return { headline, stats: [], ai, panels: [...kpis, ...tr,
-        pn("item", "PPE per item", "Mana yang paling sering tidak dipakai", itemBars, 4, "fill"), pn("zstack", "PPE per zona", "Jumlah pelanggaran, per jenis item", stackRows(zStack, segs), 4, "fill"), pn("jam", "PPE menurut jam", "Persen cek gagal; merah = 1,3× rata-rata atau lebih", jamCols, 4, "fill"),
-        pn("heat", "Zona × item PPE", "Persen cek gagal", heatH, 4, "fill"), pn("jatuh", "Deteksi jatuh", "Alarm benar vs palsu, dan per kamera", jatuhH, 4), pn("multi", "Masuk zona berbahaya per zona", "Tiap zona dari minggu ke minggu", multi, 4),
-        pn("harness", "Harness di kerja ketinggian", `${Hn.status.ada + Hn.status["tidak ada"] + Hn.status["tidak terbaca"]} episode, per zona dan shift`, harnessH, 4), pn("jzona", "Jatuh terkonfirmasi per zona", "Per 10 ribu orang terlihat", jzona, 4), pn("zona", "Zona yang perlu perhatian", "Gabungan empat sumber kamera", zTbl, 4, "fill")] };
+      const zTbl = `<table class="zt"><thead><tr><th>Zona</th><th class="n">PPE gagal<br><small>7 hari</small></th><th class="n">Jatuh<br><small>90 hari</small></th><th class="n">Zona bahaya<br><small>per 10 rb</small></th><th class="n">Tanpa harness</th></tr></thead><tbody>${rowsZ.map((r) => `<tr><td><b>${r.z}</b> <span class="zn">${esc(ZN[r.z].nama)}</span></td><td class="n ${tp.has(r.z) ? "hot" : ""}">${pc(r.ppe, 1)}<span class="ar ${r.ppe > r.ppeb * 1.1 ? "up" : r.ppe < r.ppeb * 0.9 ? "dn" : ""}">${r.ppe > r.ppeb * 1.1 ? "▲" : r.ppe < r.ppeb * 0.9 ? "▼" : ""}</span></td><td class="n ${tj.has(r.z) ? "hot" : ""}">${r.jatuh}</td><td class="n ${tb.has(r.z) ? "hot" : ""}">${dec(r.bahaya, 0)}</td><td class="n ${th.has(r.z) ? "hot" : ""}">${r.hz == null ? "–" : pc(r.hz, 1)}</td></tr>`).join("")}</tbody></table><p class="fn">Merah = dua tertinggi di kolom. Panah = dibanding 7 hari sebelumnya.</p>`;
+      const sec = (t, s, b) => `<div class="sec"><h4>${t}</h4>${s ? `<p class="cap">${s}</p>` : ""}${b}</div>`;
+      const grp = (t, s, body) => `<details class="grp"><summary><b>${t}</b><span>${s}</span></summary><div class="dgrid">${body}</div></details>`;
+      const detail = [
+        grp("PPE lebih dalam", "Menurut jam, per zona, dan zona × item", sec("Menurut jam", "Persen cek gagal; merah = 1,3× rata-rata atau lebih", jamCols) + sec("Per zona", "Jumlah pelanggaran per jenis item", stackRows(zStack, segs)) + sec("Zona × item", "", heatH)),
+        grp("Deteksi jatuh", "Alarm benar atau palsu, tanggapan, per zona", sec("Alarm per kamera", "", jatuhH) + sec("Waktu tanggapan", "Median menit menurut shift", respCol) + sec("Jatuh per zona", "Per 10 ribu orang terlihat", jzona)),
+        grp("Zona berbahaya", "Tiap zona dari minggu ke minggu", sec("Masuk per zona", "", multi)),
+        grp("Kerja di ketinggian", "Harness per zona dan shift", sec("Status harness", "", harnessD) + sec("Per zona", "", stZ) + sec("Per shift", "", stSh))].join("");
+      return { headline, ai, more, kpis, trendBody, itemBars, zTbl, detail };
     }
 
     // =====================================================  RAKIT
     function render() {
       wiring.length = 0; NOTES.clear(); tipHide();
       const V = viewSatu();
-      const toolbar = `<div class="tb"><div class="brand"><span class="logo" aria-hidden="true"></span><b>PPE Forensik</b><small>Analitik CCTV tambang · 21 Jul – 18 Okt 2026</small></div>
-        <div class="bar-r"><span class="pill syn">Data sintetis</span><button class="btn-ghost" id="asumsi-open" type="button">Dari mana angka ini</button><button class="icon-btn" id="theme" type="button" aria-label="Ganti tema terang/gelap">◐</button></div></div>`;
-      $("dash").innerHTML = `<section class="pn s12" id="p-ringkasan">${toolbar}<div class="sum"><div><h1>${esc(V.headline)}</h1></div>${V.ai}</div></section>` + V.panels.join("");
+      $("dash").innerHTML = `<aside class="rail"><div class="brand"><span class="logo" aria-hidden="true"></span><b>PPE Forensik</b></div>
+        <nav><a href="#top" class="on">Ringkasan</a><a href="#p-ai">Pelanggaran dan solusi</a><a href="#p-zona">Zona</a><a href="#detail">Detail</a></nav>
+        <div class="rail-f"><span class="pill syn">Data sintetis</span><small>Analitik CCTV tambang</small></div></aside>
+      <div class="main" id="top">
+        <header class="ph"><div><h1>Ringkasan keselamatan</h1><p>21 Jul – 18 Okt 2026 · 8 zona · 16 kamera</p></div>
+          <div class="bar-r"><button class="btn-ghost" id="asumsi-open" type="button">Dari mana angka ini</button><button class="icon-btn" id="theme" type="button" aria-label="Ganti tema terang/gelap">Tema</button></div></header>
+        <p class="lead">${esc(V.headline)}</p>
+        ${V.kpis}
+        <div class="row r83">
+          <section class="card"><header><h3>Tren mingguan</h3></header>${V.trendBody}</section>
+          <section class="card" id="p-ai"><header><h3>Pelanggaran dan solusi</h3></header>${V.ai}${V.more}</section>
+        </div>
+        <div class="row r75">
+          <section class="card" id="p-zona"><header><h3>Zona yang perlu perhatian</h3><p>Gabungan empat sumber kamera</p></header>${V.zTbl}</section>
+          <section class="card"><header><h3>PPE per item</h3><p>Mana yang paling sering tidak dipakai</p></header>${V.itemBars}</section>
+        </div>
+        <section class="card detail" id="detail"><header><h3>Detail</h3><button class="lk" id="openall" type="button">Buka semua</button></header>${V.detail}</section>
+        <footer class="foot">Data simulasi, bukan kondisi lapangan. Kamera tidak mengetahui identitas pekerja atau alasan, sehingga dashboard tidak menyimpulkan sebab.</footer>
+      </div>`;
       wiring.forEach((fn) => fn()); wireTips($("dash"));
     }
-    $("dash").addEventListener("click", () => {});
-        render();
+    render();
   }
 })();
